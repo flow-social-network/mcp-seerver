@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { probeCoreHealth } from "./core-client.js";
 
 export interface HealthSnapshot {
   status: "ok";
@@ -15,10 +16,7 @@ export interface IntegrationSnapshot {
   detail: string;
 }
 
-/**
- * Reports the local adapter's state only. It deliberately does not claim that
- * the Core API is reachable: that requires an authenticated, bounded probe.
- */
+/** Reports the local adapter only; Core is checked by a separate live probe. */
 export function getHealthSnapshot(): HealthSnapshot {
   return {
     status: "ok",
@@ -29,6 +27,7 @@ export function getHealthSnapshot(): HealthSnapshot {
   };
 }
 
+/** Static configuration summary retained for diagnostics and unit tests. */
 export function getIntegrationSnapshot(
   coreUrl = process.env.NOTEAGENTS_CORE_URL?.trim() ?? "",
 ): IntegrationSnapshot {
@@ -53,12 +52,23 @@ export function getIntegrationSnapshot(
     };
   }
 
-  if (parsed.protocol !== "https:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1") {
+  if (
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash ||
+    (parsed.pathname !== "/" && parsed.pathname !== "") ||
+    (parsed.protocol !== "https:" &&
+      !(parsed.protocol === "http:" &&
+        (parsed.hostname === "localhost" ||
+          parsed.hostname === "127.0.0.1" ||
+          parsed.hostname === "[::1]")))
+  ) {
     return {
       integration: "noteagents-core",
       status: "not_configured",
       baseUrl: null,
-      detail: "Core API URL must use HTTPS except for loopback development URLs.",
+      detail: "Core URL must be an HTTPS origin (HTTP is allowed only for loopback development) without credentials, query, fragment, or path.",
     };
   }
 
@@ -66,7 +76,7 @@ export function getIntegrationSnapshot(
     integration: "noteagents-core",
     status: "configured_unverified",
     baseUrl: parsed.origin,
-    detail: "URL is configured but reachability, authentication, and authorization have not been verified.",
+    detail: "URL is configured; use noteagents.integration.status for a live health probe. This still does not verify authentication or authorization.",
   };
 }
 
@@ -85,7 +95,7 @@ export function createMcpServer(): McpServer {
     {
       title: "MCP adapter health",
       description:
-        "Returns the local MCP adapter health. This does not assert that NoteAgents Core or any external dependency is reachable.",
+        "Returns local MCP adapter health only. It does not assert that NoteAgents Core or external dependencies are reachable.",
       inputSchema: {},
     },
     async () => ({
@@ -96,13 +106,13 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     "noteagents.integration.status",
     {
-      title: "NoteAgents Core integration status",
+      title: "NoteAgents Core live health probe",
       description:
-        "Reports whether the Core API URL is configured. A configured URL is not proof of connectivity or valid credentials.",
+        "Performs a bounded, read-only GET to the configured Core /api/v1/health endpoint. Healthy means only that this endpoint is reachable; it does not prove auth, authorization, database readiness, or business-route safety.",
       inputSchema: {},
     },
     async () => ({
-      content: [{ type: "text", text: JSON.stringify(getIntegrationSnapshot(), null, 2) }],
+      content: [{ type: "text", text: JSON.stringify(await probeCoreHealth(), null, 2) }],
     }),
   );
 
