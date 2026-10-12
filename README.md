@@ -54,7 +54,7 @@ Do not commit secrets or place access tokens in tool arguments, prompts, resourc
 6. HTTP transport is not implemented. Before enabling it, define TLS termination, authentication/OAuth, token audience and scope validation, rate limits, origin policy, request limits, and deployment-specific threat controls.
 7. Core API requests must use an explicit endpoint allowlist and must not become a generic URL fetcher; reject private/link-local destinations when a remote endpoint can be user-influenced.
 
-See [docs/architecture.md](docs/architecture.md), [docs/security.md](docs/security.md), and [docs/roadmap.md](docs/roadmap.md).
+See [docs/requirements-audit.md](docs/requirements-audit.md) for the evidence-based requirements matrix and blockers; also see [docs/architecture.md](docs/architecture.md), [docs/security.md](docs/security.md), and [docs/roadmap.md](docs/roadmap.md).
 
 ## Verification status
 
